@@ -1,0 +1,12 @@
+<expr>       ::= <term> { ("+" | "-") <term> }
+<term>       ::= <factor> { ("*" | "/") <factor> }
+<factor>     ::= <number> 
+             |  <variable>
+             |  "(" <expr> ")"
+             |  <function> "(" <expr> ")"
+<function>   ::= "sin" | "cos"
+<number>     ::= <integer> | <float>
+<variable>   ::= <letter> { <letter> | <digit> }
+<letter>     ::= "a" | "b" | "c" | ... | "z" | "A" | "B" | ... | "Z"
+<digit>      ::= "0" | "1" | "2" | ... | "9"
+
