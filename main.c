@@ -1,12 +1,14 @@
 #include <assert.h>
 #include <ctype.h>
 #include <math.h>
+#include <raylib.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 #define ARRAY_LEN(xs) ((xs[0]) / sizeof(xs))
+#define STEP 0.05
 
 // Stolen from https://github.com/tsoding/nob.h/blob/main/nob.h
 #ifndef DA_INIT_CAP
@@ -269,6 +271,30 @@ Node *parse_factor(char **formula) {
     }
     return num_node;
   }
+  if (token.kind == T_POWER) {
+    *formula += token.length;
+    Node *power_node = malloc(sizeof(Node));
+    power_node->kind = token.kind;
+    power_node->lhs = parse_factor(formula);
+    power_node->rhs = parse_factor(formula);
+    return power_node;
+  }
+
+  // if (token.kind == T_POWER) {
+  //   printf("T_POWER parse\n");
+  //   Node *lhs = parse_factor(formula);
+  //   while (token.kind == T_POWER) {
+  //     *formula += token.length;
+  //     Node *rhs = parse_factor(formula);
+  //     Node *power_node = malloc(sizeof(Node));
+  //     power_node->kind = T_POWER;
+  //     power_node->lhs = lhs;
+  //     power_node->rhs = rhs;
+  //     lhs = power_node;
+  //     token = peek_token(*formula);
+  //   }
+  //   return lhs;
+  // }
 
   if (token.kind == T_VAR) {
     *formula += token.length;
@@ -308,7 +334,7 @@ Node *parse_term(char **formula) {
 
   while (true) {
     Token token = peek_token(*formula);
-    if (token.kind != T_MUL && token.kind != T_DIV) {
+    if (token.kind != T_MUL && token.kind != T_DIV && token.kind != T_POWER) {
       break;
     }
 
@@ -390,6 +416,15 @@ EvalResult eval_ast(Node *node, double x) {
       return right;
     return (EvalResult){left.value - right.value, false, NULL};
 
+  case T_POWER:
+    left = eval_ast(node->lhs, x);
+    if (left.has_error)
+      return left;
+    right = eval_ast(node->rhs, x);
+    if (right.has_error)
+      return right;
+    return (EvalResult){powf(left.value, right.value), false, NULL};
+
   case T_MUL:
     left = eval_ast(node->lhs, x);
     if (left.has_error)
@@ -434,15 +469,6 @@ EvalResult eval_ast(Node *node, double x) {
     if (left.has_error)
       return left;
     return (EvalResult){tanf(left.value), false, NULL};
-
-  case T_POWER:
-    left = eval_ast(node->lhs, x);
-    if (left.has_error)
-      return left;
-    right = eval_ast(node->rhs, x);
-    if (right.has_error)
-      return right;
-    return (EvalResult){powf(left.value, right.value), false, NULL};
 
   case T_VAR:
     return (EvalResult){x, false, NULL};
@@ -549,15 +575,98 @@ void print_usage(char *program_name, int argc) {
   }
 }
 
-EvalResults *eval_ast_range(Node *ast, ExpressionVars ev, Range r) {
+EvalResults *eval_ast_range(Node *ast, Range r) {
   size_t result_count = (size_t)((r.x_max - r.x_min) / r.step) + 1;
   EvalResults *results = malloc(result_count * sizeof(EvalResults));
-  size_t current_result = 0;
   for (double x = r.x_min; x < r.x_max; x += r.step) {
     EvalResult r = eval_ast(ast, x);
     da_append(results, r);
   }
   return results;
+}
+
+void plot_results(EvalResults results, Range r) {
+  const int screenWidth = 800;
+  const int screenHeight = 600;
+
+  InitWindow(screenWidth, screenHeight, "Function Plot");
+  SetTargetFPS(60);
+
+  // Find min/max for scaling
+  float min_val = results.items[0].value;
+  float max_val = results.items[0].value;
+  for (size_t i = 1; i < results.count; i++) {
+    min_val = fminf(min_val, results.items[i].value);
+    max_val = fmaxf(max_val, results.items[i].value);
+  }
+
+  while (!WindowShouldClose()) {
+    BeginDrawing();
+    ClearBackground(RAYWHITE);
+
+    // Draw grid
+    for (int x = 50; x < screenWidth - 50; x += 50) {
+      DrawLine(x, 50, x, screenHeight - 50, LIGHTGRAY);
+    }
+    for (int y = 50; y < screenHeight - 50; y += 50) {
+      DrawLine(50, y, screenWidth - 50, y, LIGHTGRAY);
+    }
+
+    // Plot axes
+    DrawLine(50, screenHeight - 50, 50, 50, BLACK); // Y-axis
+    DrawLine(50, screenHeight - 50, screenWidth - 50, screenHeight - 50,
+             BLACK); // X-axis
+
+    // Draw X-axis labels
+    // for (int x = 0; x < r.x_max; x++) {
+    //   float screen_x =
+    //       50 + x * (float)(screenWidth - 100) / (results.count - 1);
+    //   char label[10];
+    //   snprintf(label, sizeof(label), "%.2f",
+    //            min_val + x * (max_val - min_val) / (results.count - 1));
+    //   DrawText(label, screen_x, screenHeight - 40, 10, DARKGRAY);
+    // }
+
+    int num_labels = 10;
+    for (int i = 0; i <= num_labels; i++) {
+      float screen_x = 50 + i * (float)(screenWidth - 100) / num_labels;
+      float x_val = r.x_min + i * (r.x_max - r.x_min) / num_labels;
+      char label[10];
+      snprintf(label, sizeof(label), "%.2f", x_val);
+      DrawText(label, screen_x - MeasureText(label, 10) / 2, screenHeight - 40,
+               10, DARKGRAY);
+    }
+
+    // Draw Y-axis labels
+    int num_y_labels = 5;
+    for (int i = 0; i < num_y_labels; i++) {
+      float screen_y = screenHeight - 50 -
+                       i * (float)(screenHeight - 100) / (num_y_labels - 1);
+      char label[10];
+      snprintf(label, sizeof(label), "%.2f",
+               min_val + i * (max_val - min_val) / (num_y_labels - 1));
+      DrawText(label, 10, screen_y, 10, DARKGRAY);
+    }
+
+    // Plot points
+    for (size_t i = 1; i < results.count; i++) {
+      float x1 =
+          50 + (i - 1) * (float)(screenWidth - 100) / (results.count - 1);
+      float x2 = 50 + i * (float)(screenWidth - 100) / (results.count - 1);
+      float y1 = screenHeight - 50 -
+                 (results.items[i - 1].value - min_val) * (screenHeight - 100) /
+                     (max_val - min_val);
+      float y2 = screenHeight - 50 -
+                 (results.items[i].value - min_val) * (screenHeight - 100) /
+                     (max_val - min_val);
+
+      DrawLine(x1, y1, x2, y2, BLUE);
+    }
+
+    EndDrawing();
+  }
+
+  CloseWindow();
 }
 
 int main(int argc, char **argv) {
@@ -571,14 +680,14 @@ int main(int argc, char **argv) {
 
   print_usage(program_name, argc);
 
-  char *formula;
-  if (!(formula = shift(&argv, &argc))) {
+  char *expression;
+  if (!(expression = shift(&argv, &argc))) {
     fprintf(stderr, "ERROR: Reading <expression> from arguments\n");
     return 1;
   }
 
   // 1. Parse expression and build AST
-  Node *ast = parse_expression(&formula);
+  Node *ast = parse_expression(&expression);
   print_ast(ast, 0);
 
   // 2. Find out variables to give them values
@@ -600,21 +709,16 @@ int main(int argc, char **argv) {
   int x_min, x_max;
   Range r = {.x_max = 0,
              .x_min = 0,
-             .step = 0.1,
+             .step = STEP,
              .x_min_inclusive = false,
              .x_max_exclusive = false};
   parse_range(&r, range, &x_min, &x_max);
 
   // 4. Evaluate AST
-  EvalResults *results = eval_ast_range(ast, ev, r);
-  for (size_t i = 0; i < results->count; i++) {
-    EvalResult result = results->items[i];
-    if (result.has_error) {
-      printf("Error: %s\n", result.error_message);
-    } else {
-      printf("Result: %f\n", result.value);
-    }
-  }
+  EvalResults *results = eval_ast_range(ast, r);
+
+  // 5. Plot
+  plot_results(*results, r);
 
   return 0;
 }

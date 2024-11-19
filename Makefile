@@ -1,6 +1,6 @@
 CC=gcc
 CFLAGS=-Wall -Wextra
-LDFLAGS=-lm
+LDFLAGS=-lm -lraylib
 SOURCE=main.c
 OUTPUT=main
 

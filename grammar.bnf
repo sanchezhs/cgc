@@ -4,7 +4,8 @@
              |  <variable>
              |  "(" <expr> ")"
              |  <function> "(" <expr> ")"
-<function>   ::= "sin" | "cos"
+             |  <factor> "^" <factor>
+<function>   ::= "sin" | "cos" | "tan"
 <number>     ::= <integer> | <float>
 <variable>   ::= <letter> { <letter> | <digit> }
 <letter>     ::= "a" | "b" | "c" | ... | "z" | "A" | "B" | ... | "Z"
