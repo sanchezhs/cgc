@@ -2,6 +2,10 @@
 C Graphics Calculator
 Program written in C that plots a given expression.
 
+## Dependencies
+- math 
+- raylib
+
 # Usage
 ```bash
 make
