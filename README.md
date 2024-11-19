@@ -8,6 +8,5 @@ make
 ```
 
 # TODO
-- Finish variables
-- Compute multiple values for input function
 - Draw plot with Raylib
+- Support for more than one variable
